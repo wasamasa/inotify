@@ -7,7 +7,7 @@
 
 (import chicken scheme foreign)
 
-(use extras srfi-18)
+(use extras srfi-18 lolevel)
 
 #>
 #include <errno.h>
@@ -29,20 +29,19 @@
 
 (define errno->string (foreign-lambda* c-string () "C_return(strerror(errno));"))
 (define inotify_next_event
-  (foreign-lambda* (c-pointer (struct "inotify_event")) ((int fd))
+  (foreign-lambda* nullable-inotify_event* ((inotify_event* event) (int fd))
     "int EVENT_SIZE = sizeof(struct inotify_event);"
     "int BUF_LEN = EVENT_SIZE + NAME_MAX + 1;"
-    "static struct inotify_event event[1];"
 
-    "int length = read(fd, &event[0], BUF_LEN);"
+    "int length = read(fd, event, BUF_LEN);"
     ;; generic error
     "if (length <= 0)"
     "  C_return(NULL);"
     ;; incomplete read, shouldn't happen
-    "else if (length < EVENT_SIZE + event[0].len)"
+    "else if (length < EVENT_SIZE + event->len)"
     "  C_return(NULL);"
 
-    "C_return(&event[0]);"))
+    "C_return(event);"))
 
 ;;; records
 
@@ -221,10 +220,13 @@
         (abort (errno-error 'add-watch!))
         ret)))
 
+(define event-buffer-size (foreign-value "sizeof(struct inotify_event) + NAME_MAX + 1" int))
+(define event-buffer-pointer (make-locative (make-blob event-buffer-size)))
+
 (define (next-event!)
   (ensure-initialized! 'next-event!)
   (thread-wait-for-i/o! (%fd))
-  (let ((ret (inotify_next_event (%fd))))
+  (let ((ret (inotify_next_event event-buffer-pointer (%fd))))
     (if (not ret)
         (abort (errno-error 'next-event!))
         (pointer->event ret))))
