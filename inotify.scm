@@ -48,7 +48,9 @@
 
 (define-record event wd flags cookie name)
 (define-record-printer (event e out)
-  (fprintf out "#<event ~a: ~s>" (event-wd e) (event-flags e)))
+  (if (event-name e)
+      (fprintf out "#<event ~a: ~s ~s>" (event-wd e) (event-flags e) (event-name e))
+      (fprintf out "#<event ~a: ~s>" (event-wd e) (event-flags e))))
 
 (define (pointer->event ptr)
   (let ((wd ((foreign-lambda* int ((inotify_event* event))
