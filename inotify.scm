@@ -1,6 +1,6 @@
 (module inotify
   (%fd init! clean-up!
-   add-watch!
+   add-watch! remove-watch!
    next-event!
    event-wd event-flags event-cookie event-name
    max-queued-events max-user-watches max-user-watches)
@@ -25,6 +25,7 @@
 
 (define inotify_init (foreign-lambda int "inotify_init"))
 (define inotify_add_watch (foreign-lambda int "inotify_add_watch" int c-string int))
+(define inotify_rm_watch (foreign-lambda int "inotify_rm_watch" int int))
 (define close (foreign-lambda int "close" int))
 
 (define errno->string (foreign-lambda* c-string () "C_return(strerror(errno));"))
@@ -219,6 +220,13 @@
     (if (< ret 0)
         (abort (errno-error 'add-watch!))
         ret)))
+
+(define (remove-watch! wd)
+  (ensure-initialized! 'remove-watch!)
+  (let ((ret (inotify_rm_watch (%fd) wd)))
+    (if (< ret 0)
+        (abort (errno-error 'remove-watch!))
+        #t)))
 
 (define event-buffer-size (foreign-value "sizeof(struct inotify_event) + NAME_MAX + 1" int))
 (define event-buffer-pointer (make-locative (make-blob event-buffer-size)))
