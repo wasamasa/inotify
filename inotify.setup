@@ -1,0 +1,7 @@
+(compile -C -g -s -O3 -d1 "inotify.scm" -J)
+(compile -s "inotify.import.scm")
+
+(install-extension
+ 'inotify
+ '("inotify.so" "inotify.import.so")
+ '((version "0.0.1")))

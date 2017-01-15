@@ -1,0 +1,5 @@
+((synopsis "Bindings to inotify")
+ (author "Vasilij Schneidermann")
+ (license "MIT")
+ (category io)
+ (foreign-depends "linux"))
