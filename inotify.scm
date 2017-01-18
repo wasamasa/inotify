@@ -23,12 +23,28 @@
 
 ;;; foreign functions
 
-(define inotify_init (foreign-lambda int "inotify_init"))
-(define inotify_add_watch (foreign-lambda int "inotify_add_watch" int c-string int))
-(define inotify_rm_watch (foreign-lambda int "inotify_rm_watch" int int))
-(define close (foreign-lambda int "close" int))
+(define strerror (foreign-lambda c-string "strerror" int))
 
-(define errno->string (foreign-lambda* c-string () "C_return(strerror(errno));"))
+(define inotify_init
+  (foreign-lambda* int ()
+    "int ret = inotify_init();"
+    "C_return(ret < 0 ? -errno : ret);"))
+
+(define inotify_add_watch
+  (foreign-lambda* int ((int fd) (c-string path) (int mask))
+    "int ret = inotify_add_watch(fd, path, mask);"
+    "C_return(ret < 0 ? -errno : ret);"))
+
+(define inotify_rm_watch
+  (foreign-lambda* int ((int fd) (int wd))
+    "int ret = inotify_rm_watch(fd, wd);"
+    "C_return(ret < 0 ? -errno : ret);"))
+
+(define close
+  (foreign-lambda* int ((int fd))
+    "int ret = close(fd);"
+    "C_return(ret < 0 ? -errno : ret);"))
+
 (define inotify_next_event
   (foreign-lambda* nullable-inotify_event* ((inotify_event* event) (int fd))
     "int EVENT_SIZE = sizeof(struct inotify_event);"
@@ -72,8 +88,8 @@
                                             'location location)))
     (apply make-composite-condition condition conditions)))
 
-(define (errno-error location)
-  (make-error (errno->string) location '(i/o file)))
+(define (errno-error errno location)
+  (make-error (strerror errno) location '(i/o file)))
 
 (define (event-flag-error flag location)
   (make-error (format "Unknown event flag ~a" flag) location '(match)))
@@ -197,7 +213,7 @@
   (if (not (%fd))
       (let ((ret (inotify_init)))
         (if (< ret 0)
-            (abort (errno-error 'init!))
+            (abort (errno-error (- ret) 'init!))
             (%fd ret))
         #t)
       #f))
@@ -206,7 +222,7 @@
   (if (%fd)
       (let ((ret (inotify_init)))
         (if (< ret 0)
-            (abort (errno-error 'clean-up!))
+            (abort (errno-error (- ret) 'clean-up!))
             (%fd #f))
         #t)
       #f))
@@ -220,14 +236,14 @@
   (let* ((mask (event-flags->int flags 'add-watch!))
          (ret (inotify_add_watch (%fd) path mask)))
     (if (< ret 0)
-        (abort (errno-error 'add-watch!))
+        (abort (errno-error (- ret) 'add-watch!))
         ret)))
 
 (define (remove-watch! wd)
   (ensure-initialized! 'remove-watch!)
   (let ((ret (inotify_rm_watch (%fd) wd)))
     (if (< ret 0)
-        (abort (errno-error 'remove-watch!))
+        (abort (errno-error (- ret) 'remove-watch!))
         #t)))
 
 (define event-buffer-size (foreign-value "sizeof(struct inotify_event) + NAME_MAX + 1" int))
