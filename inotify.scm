@@ -1,13 +1,13 @@
 (module inotify
   (%fd init! clean-up!
    add-watch! remove-watch!
-   next-event!
+   next-events! %events next-event!
    event-wd event-flags event-cookie event-name
    max-queued-events max-user-watches max-user-watches)
 
 (import chicken scheme foreign)
 
-(use extras srfi-18 lolevel)
+(use extras srfi-18 lolevel data-structures)
 
 #>
 #include <errno.h>
@@ -45,20 +45,25 @@
     "int ret = close(fd);"
     "C_return(ret < 0 ? -errno : ret);"))
 
-(define inotify_next_event
-  (foreign-lambda* nullable-inotify_event* ((inotify_event* event) (int fd))
-    "int EVENT_SIZE = sizeof(struct inotify_event);"
-    "int BUF_LEN = EVENT_SIZE + NAME_MAX + 1;"
+(define inotify_next_events
+  (foreign-lambda* int ((blob buf) (int buf_len) (pointer-vector events) (int fd))
+    ;; adapted from inotify(7)
+    "struct inotify_event *event;"
+    "ssize_t len;"
+    "char *ptr;"
+    "int i;"
 
-    "int length = read(fd, event, BUF_LEN);"
-    ;; generic error
-    "if (length <= 0)"
-    "  C_return(NULL);"
-    ;; incomplete read, shouldn't happen
-    "else if (length < EVENT_SIZE + event->len)"
-    "  C_return(NULL);"
+    "len = read(fd, (char *) buf, buf_len);"
+    "if (len <= 0)"
+    "  C_return(-errno);"
 
-    "C_return(event);"))
+    "for (ptr = (char *) buf, i = 0; ptr < (char *) buf + len;"
+    "     ptr += sizeof(struct inotify_event) + event->len, ++i) {"
+    "  event = (struct inotify_event *) ptr;"
+    "  events[i] = event;"
+    "}"
+
+    "C_return(i);"))
 
 ;;; records
 
@@ -246,16 +251,34 @@
         (abort (errno-error (- ret) 'remove-watch!))
         #t)))
 
-(define event-buffer-size (foreign-value "sizeof(struct inotify_event) + NAME_MAX + 1" int))
-(define event-buffer-pointer (make-locative (make-blob event-buffer-size)))
+(define %events-buffer-size 4096)
+(define %min-event-size (foreign-value "sizeof(struct inotify_event)" int))
+(define %max-event-count (/ %events-buffer-size %min-event-size))
+(define %events-buffer (make-blob %events-buffer-size))
+(define %events-pointers (make-pointer-vector %max-event-count))
+
+(define (next-events!)
+  (ensure-initialized! 'next-events!)
+  (thread-wait-for-i/o! (%fd))
+  (let* ((ret (inotify_next_events %events-buffer %events-buffer-size
+                                   %events-pointers (%fd))))
+    (if (< ret 0)
+        (abort (errno-error (- ret) 'next-events!))
+        (reverse
+         (let loop ((i 0) (acc '()))
+           (if (< i ret)
+               (let* ((pointer (pointer-vector-ref %events-pointers i))
+                      (event (pointer->event pointer)))
+                 (loop (add1 i) (cons event acc)))
+               acc))))))
+
+(define %events (make-parameter (make-queue)))
 
 (define (next-event!)
   (ensure-initialized! 'next-event!)
-  (thread-wait-for-i/o! (%fd))
-  (let ((ret (inotify_next_event event-buffer-pointer (%fd))))
-    (if (not ret)
-        (abort (errno-error 'next-event!))
-        (pointer->event ret))))
+  (when (queue-empty? (%events))
+    (queue-push-back-list! (%events) (next-events!)))
+  (queue-remove! (%events)))
 
 (define (proc-file->number path)
   (string->number (with-input-from-file path read-line)))
