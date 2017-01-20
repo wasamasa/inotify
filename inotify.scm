@@ -1,13 +1,16 @@
 (module inotify
   (%fd init! clean-up!
    add-watch! remove-watch!
+   add-watch-recursively!
+   wd->path wd-list path-list
    next-events! %events next-event!
-   event-wd event-flags event-cookie event-name
-   max-queued-events max-user-watches max-user-watches)
+   event? event-wd event-flags event-cookie event-name
+   event->pathname
+   max-queued-events max-user-instances max-user-watches)
 
 (import chicken scheme foreign)
 
-(use extras srfi-18 lolevel data-structures)
+(use extras srfi-18 srfi-69 lolevel posix data-structures files)
 
 #>
 #include <errno.h>
@@ -238,20 +241,43 @@
   (when (not (%fd))
     (abort (usage-error "init! hasn't been called yet" location))))
 
+(define %watch->path-table (make-hash-table = number-hash))
+
 (define (add-watch! path flags)
   (ensure-initialized! 'add-watch!)
   (let* ((mask (event-flags->int flags 'add-watch!))
          (ret (inotify_add_watch (%fd) path mask)))
     (if (< ret 0)
         (abort (errno-error (- ret) 'add-watch!))
-        ret)))
+        (begin
+          (hash-table-set! %watch->path-table ret path)
+          ret))))
 
 (define (remove-watch! wd)
   (ensure-initialized! 'remove-watch!)
   (let ((ret (inotify_rm_watch (%fd) wd)))
     (if (< ret 0)
         (abort (errno-error (- ret) 'remove-watch!))
-        #t)))
+        (begin
+          (hash-table-delete! %watch->path-table wd)
+          #t))))
+
+(define (add-watch-recursively! path flags)
+  (ensure-initialized! 'add-watch-recursively!)
+  (when (not (directory? path))
+    (abort (usage-error "path argument must be a directory"
+                        'add-watch-recursively!)))
+  (let ((wd (add-watch! path flags)))
+    (find-files path test: directory?
+                action: (lambda (x acc)
+                          (let ((wd (add-watch! x flags)))
+                            (cons wd acc)))
+                seed: (list wd))))
+
+(define (wd->path wd) (hash-table-ref %watch->path-table wd))
+;; NOTE: I'm deliberately omitting path->wd as I doubt it's needed
+(define (wd-list) (hash-table-keys %watch->path-table))
+(define (path-list) (hash-table-values %watch->path-table))
 
 (define %events-buffer-size 4096)
 (define %min-event-size (foreign-value "sizeof(struct inotify_event)" int))
@@ -281,6 +307,13 @@
   (when (queue-empty? (%events))
     (queue-push-back-list! (%events) (next-events!)))
   (queue-remove! (%events)))
+
+(define (event->pathname event)
+  (let ((path (wd->path (event-wd event)))
+        (name (event-name event)))
+    (if name
+        (make-pathname path name)
+        path)))
 
 (define (proc-file->number path)
   (string->number (with-input-from-file path read-line)))
