@@ -224,8 +224,10 @@
       #f))
 
 (define (clean-up!)
+  ;; NOTE: no need to remove watches as inotify does that once the
+  ;; associated fd has been closed
   (if (%fd)
-      (let ((ret (inotify_init)))
+      (let ((ret (close (%fd))))
         (if (< ret 0)
             (abort (errno-error (- ret) 'clean-up!))
             (%fd #f))
