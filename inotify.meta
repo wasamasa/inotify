@@ -2,4 +2,5 @@
  (author "Vasilij Schneidermann")
  (license "MIT")
  (category io)
+ (test-depends test)
  (foreign-depends "linux"))
