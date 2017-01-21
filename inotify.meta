@@ -3,4 +3,6 @@
  (license "MIT")
  (category io)
  (test-depends test)
- (foreign-depends "linux"))
+ (foreign-depends "linux")
+ (files "inotify.scm" "inotify.meta" "inotify.setup" "inotify.release-info"
+        "tests/run.scm" "LICENSE" "README.rst"))
