@@ -40,22 +40,6 @@
 (create-directory "test-data")
 (init!)
 
-(test-group "Recursive watches"
-  (create-directory "test-data/foo")
-  (create-directory "test-data/bar")
-  (let ((wds (add-watch-recursively! "test-data" '(all-events))))
-    (test 3 (length wds))
-    (for-each remove-watch! wds))
-  (delete-directory "test-data/foo")
-  (delete-directory "test-data/bar"))
-
-(test-group "Watches"
-  (let ((wd (add-watch! "test-data" '(all-events))))
-    (test #t (number? wd))
-    (test "test-data" (wd->path wd))
-    (test (list wd) (wd-list))
-    (test '("test-data") (path-list))))
-
 (define events '())
 (define bg-thread
   (thread-start!
@@ -71,6 +55,36 @@
 (define (find-events type events)
   (filter (lambda (event) (memv type (event-flags event))) events))
 
+(define (dedup pred lis)
+  (apply lset-adjoin pred '() lis))
+
+(test-group "Recursive watches"
+  (create-directory "test-data/foo")
+  (create-directory "test-data/bar")
+  (let ((wds (add-watch-recursively! "test-data" '(all-events))))
+    (test 3 (length wds))
+    (system "ls test-data")
+    (thread-sleep! 0.1)
+    (system "ls test-data/foo")
+    (thread-sleep! 0.1)
+    (system "ls test-data/bar")
+    (thread-sleep! 0.1)
+    (test #t (lset= = wds (dedup = (map event-wd events))))
+    (set! events '())
+    (for-each remove-watch! wds)
+    (system "ls test-data")
+    (thread-sleep! 0.1)
+    (test #t (lset= eq? '(ignored) (dedup eq? (append-map event-flags events)))))
+  (delete-directory "test-data/foo")
+  (delete-directory "test-data/bar"))
+
+(test-group "Watches"
+  (let ((wd (add-watch! "test-data" '(all-events))))
+    (test #t (number? wd))
+    (test "test-data" (wd->path wd))
+    (test (list wd) (wd-list))
+    (test '("test-data") (path-list))))
+
 (test-group "File creation"
   (set! events '())
   (system "touch test-data/foo")
@@ -79,8 +93,8 @@
   (thread-sleep! 0.1)
   (let ((events (find-events 'create events)))
     (test 2 (length events))
-    (test '(create create) (append-map event-flags events))
-    (test '("bar" "foo") (map event-name events))))
+    (test #t (lset= eq? '(create) (append-map event-flags events)))
+    (test #t (lset= equal? '("foo" "bar") (map event-name events)))))
 
 (test-group "File modification"
   (set! events '())
