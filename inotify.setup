@@ -7,4 +7,4 @@
  'inotify
  '("inotify-lolevel.so" "inotify-lolevel.import.so"
    "inotify.so" "inotify.import.so")
- '((version "0.1")))
+ '((version "0.2")))
