@@ -1,7 +1,10 @@
+(compile -C -g -s -O3 -d1 "inotify-lolevel.scm" -J)
+(compile -s "inotify-lolevel.import.scm")
 (compile -C -g -s -O3 -d1 "inotify.scm" -J)
 (compile -s "inotify.import.scm")
 
 (install-extension
  'inotify
- '("inotify.so" "inotify.import.so")
+ '("inotify-lolevel.so" "inotify-lolevel.import.so"
+   "inotify.so" "inotify.import.so")
  '((version "0.1")))
