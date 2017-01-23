@@ -56,7 +56,10 @@
     "char *ptr;"
     "int i;"
 
-    "len = read(fd, (char *) buf, buf_len);"
+    "do {"
+    "  len = read(fd, (char *) buf, buf_len);"
+    "} while (len == -1 && errno == EINTR);"
+
     "if (len <= 0)"
     "  C_return(-errno);"
 
