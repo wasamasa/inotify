@@ -284,12 +284,15 @@
 
 (define %events-buffer-size 4096)
 (define %min-event-size (foreign-value "sizeof(struct inotify_event)" int))
+(define %max-event-size (+ %min-event-size (foreign-value "NAME_MAX" int) 1))
 (define %max-event-count (/ %events-buffer-size %min-event-size))
 (define %events-buffer (make-blob %events-buffer-size))
 (define %events-pointers (make-pointer-vector %max-event-count))
 
 (define (next-events!)
   (ensure-initialized! 'next-events!)
+  (when (> %max-event-size %events-buffer-size)
+    (abort (usage-error "Abnormally large NAME_NAX" 'next-events!)))
   (thread-wait-for-i/o! (%fd))
   (let* ((ret (inotify_next_events %events-buffer %events-buffer-size
                                    %events-pointers (%fd))))
