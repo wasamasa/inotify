@@ -237,27 +237,24 @@
     (when (< ret 0)
       (abort (errno-error (- ret) '%remove-watch!)))))
 
-;; TODO: do these top-level variables behave correctly in the face of threading?
 (define %events-buffer-size 4096)
 (define %min-event-size (foreign-value "sizeof(struct inotify_event)" int))
 (define %max-event-size (+ %min-event-size (foreign-value "NAME_MAX" int) 1))
 (define %max-event-count (/ %events-buffer-size %min-event-size))
-(define %events-buffer (make-blob %events-buffer-size))
-(define %events-pointers (make-pointer-vector %max-event-count))
 
 (define (%next-events! fd)
   (when (> %max-event-size %events-buffer-size)
     (abort (usage-error "NAME_MAX exceeds read buffer size" '%next-events!)))
-  ;; TODO: rewrite for non-blocking fd variant
-  (thread-wait-for-i/o! fd)
-  (let* ((ret (inotify_next_events %events-buffer %events-buffer-size
-                                   %events-pointers fd)))
+  (thread-wait-for-i/o! fd #:input)
+  (let* ((buffer (make-blob %events-buffer-size))
+         (pointers (make-pointer-vector %max-event-count))
+         (ret (inotify_next_events buffer %events-buffer-size pointers fd)))
     (if (< ret 0)
         (abort (errno-error (- ret) '%next-events!))
         (reverse
          (let loop ((i 0) (acc '()))
            (if (< i ret)
-               (let* ((pointer (pointer-vector-ref %events-pointers i))
+               (let* ((pointer (pointer-vector-ref pointers i))
                       (event (pointer->event pointer)))
                  (loop (add1 i) (cons event acc)))
                acc))))))
