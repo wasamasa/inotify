@@ -250,6 +250,10 @@
          (pointers (make-pointer-vector %max-event-count))
          (ret (inotify_next_events buffer %events-buffer-size pointers fd)))
     (if (< ret 0)
+        ;; TODO: if the fd is non-blocking and we get EAGAIN after
+        ;; wakeup, just recur into this function
+        ;; NOTE: this is better than sleeping in the C code as we
+        ;; wait for I/O before trying again
         (abort (errno-error (- ret) '%next-events!))
         (reverse
          (let loop ((i 0) (acc '()))
