@@ -1,4 +1,14 @@
-(use inotify test srfi-18 posix srfi-1)
+(import scheme)
+(cond-expand
+ (chicken-4
+  (use inotify test srfi-18 posix srfi-1))
+ (chicken-5
+  (import (chicken file))
+  (import (chicken process))
+  (import (srfi 1))
+  (import (srfi 18))
+  (import inotify)
+  (import test)))
 
 (test-group "Basic API failures"
   (test #f (%fd))

@@ -1,0 +1,11 @@
+((synopsis "Bindings to inotify")
+ (author "Vasilij Schneidermann")
+ (license "MIT")
+ (category io)
+ (dependencies miscmacros queues srfi-18 srfi-69)
+ (test-dependencies test srfi-1)
+ (foreign-dependencies "linux")
+ (component-options (csc-options "-O3" "-d1"))
+ (components (extension inotify-lolevel)
+             (extension inotify
+                        (component-dependencies inotify-lolevel))))
