@@ -1,4 +1,14 @@
-(use irregex inotify scsh-process srfi-18)
+(import scheme)
+(cond-expand
+ (chicken-4
+  (use irregex inotify scsh-process srfi-18))
+ (chicken-5
+  (import (chicken base))
+  (import (chicken format))
+  (import (chicken irregex))
+  (import inotify)
+  (import scsh-process)
+  (import (srfi 18))))
 
 (init!)
 (on-exit clean-up!)

@@ -1,4 +1,13 @@
-(use posix inotify scsh-process)
+(import scheme)
+(cond-expand
+ (chicken-4
+  (use posix inotify scsh-process))
+ (chicken-5
+  (import (chicken base))
+  (import (chicken pathname))
+  (import (chicken process-context))
+  (import inotify)
+  (import scsh-process)))
 
 (define local-path (make-pathname (get-environment-variable "HOME") "fallkiste/"))
 (define remote-path "lab:/srv/http/fallkiste")
