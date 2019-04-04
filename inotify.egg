@@ -6,6 +6,8 @@
  (test-dependencies test srfi-1)
  (foreign-dependencies "linux")
  (component-options (csc-options "-O3" "-d1"))
- (components (extension inotify-lolevel)
+ (components (extension inotify-lolevel
+                        (source-dependencies "inotify-lolevel-impl.scm"))
              (extension inotify
-                        (component-dependencies inotify-lolevel))))
+                        (component-dependencies inotify-lolevel)
+                        (source-dependencies "inotify-impl.scm"))))
